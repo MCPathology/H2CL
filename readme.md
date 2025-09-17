@@ -6,27 +6,27 @@ Paper is submitted and under review.
 
 
 
-## Visualization results (higher resolution versions)
+## Visualization results (high-resolution versions)
 
 
 ### HiCervix
 
-![Confusion Matrix HiCervix](\assets\confusion_cervix.png)
+![Confusion Matrix HiCervix](./assets/confusion_cervix.png)
 
 
 ### MoleMap
-![Confusion Matrix MoleMap](\assets\confusion_skin.png)
+![Confusion Matrix MoleMap](./assets/confusion_skin.png)
 
 ### UIdataGB
 
-![Confusion Matrix UIdataGB](\assets\confusion_gd.png)
+![Confusion Matrix UIdataGB](./assets/confusion_gd.png)
 
 
 ### Our model t-SNE
 
-![t-SNE H2CL](\assets\order_vs_family_tsne_h2cl.png)
+![t-SNE H2CL](./assets/order_vs_family_tsne_h2cl.png)
 
 
 ### Swin Transformer t-SNE (as our backbone)
 
-![t-SNE H2CL](\assets\order_vs_family_tsne_swin.png)
+![t-SNE H2CL](./assets/order_vs_family_tsne_swin.png)
