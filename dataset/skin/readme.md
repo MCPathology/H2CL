@@ -1,1 +1,0 @@
-please apply for the access of MoleMap.
