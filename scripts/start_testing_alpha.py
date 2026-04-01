@@ -40,8 +40,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 
-train_csv = 'dataset/hierarchy_classification/version2023/train_image_path_mbm.csv'
-val_csv = 'dataset/hierarchy_classification/version2023/test_image_path_mbm.csv'
+train_csv = 'dataset/train.csv'
+val_csv = 'dataset/test.csv'
 
 
 print('==> Preparing data..')
@@ -139,7 +139,7 @@ def main(test_opts):
 #         assert os.path.isfile(expm_json_path)
 #         expm_json_path = 'classification_hierarchy/making-better-mistakes/experiments/hxe_tct_alpha0.4/opts.json'
 #         expm_json_path = 'classification_hierarchy/making-better-mistakes/experiments/hxe_tct_alpha0.4_1117/opts.json'
-        expm_json_path = 'classification_hierarchy/making-better-mistakes-swinT/hxe_tct_alpha0.4_0412_alpha{}/opts.json'.format(test_opts.alpha)
+        expm_json_path = 'experiments/hxe_tct_alpha0.4_0412_alpha{}/opts.json'.format(test_opts.alpha)
         with open(expm_json_path) as fp:
             opts = json.load(fp)
             # convert dictionary to namespace
@@ -188,11 +188,11 @@ def main(test_opts):
             classes, _ = get_classes(hierarchy, output_all_nodes=True)
         else:
 #             classes = test_dataset.classes
-            classes =  ['其他正常细胞','宫颈管细胞','修复细胞','化生细胞','糖原溶解细胞','萎缩性改变','子宫内膜细胞','深染细胞团',
+            classes =  ['Normal','ECC','RPC','MPC','PG','Atrophy','EMC','HCG',
                'ASC-US','LSIL','ASC-H','HSIL', 'SCC',
-                'AGC-FN', #'AGC','AGC-NOS', 'ADC',  to check AGC-FN的顺序？
-                '非典型颈管腺细胞','非典型子宫内膜细胞', '颈管腺癌','子宫内膜腺癌',  
-               '念珠菌','放线菌','滴虫','疱疹病毒感染','细菌性阴道病']
+                'AGC-FN', #'AGC','AGC-NOS', 'ADC',  to check AGC-FN order?
+                'AGC-ECC-NOS','AGC-EMC-NOS', 'ADC-ECC','ADC-EMC',
+               'FUNGI','ACTINO','TRI','HSV','CC']
 
         opts.num_classes = len(classes)
 
@@ -256,7 +256,7 @@ def main(test_opts):
             checkpoint_id = "checkpoint.epoch%04d.pth.tar" % e
 #             checkpoint_path = osp.join('classification_hierarchy/making-better-mistakes/experiments/hxe_tct_alpha0.4/model_snapshots', checkpoint_id)
 #             checkpoint_path = osp.join('classification_hierarchy/making-better-mistakes/experiments/hxe_tct_alpha0.4_1117/model_snapshots', checkpoint_id)
-            checkpoint_path = osp.join('classification_hierarchy/making-better-mistakes-swinT/hxe_tct_alpha0.4_0412_alpha{}/model_snapshots'.format(test_opts.alpha), checkpoint_id)
+            checkpoint_path = osp.join('experiments/hxe_tct_alpha0.4_0412_alpha{}/model_snapshots'.format(test_opts.alpha), checkpoint_id)
 #             checkpoint_path = os.path.join(test_opts.experiments_path, experiment, "model_snapshots", checkpoint_id)
             if os.path.isfile(checkpoint_path):
                 checkpoint = torch.load(checkpoint_path,map_location=torch.device('cuda:0'))
@@ -271,14 +271,14 @@ def main(test_opts):
             else:
                 summary, _, species_probs = run(test_loader, model, loss_function, distances, soft_labels, classes, opts, 0, 0, is_inference=True, corrector=corrector)
             
-            with open('dataset/hierarchy_classification/version3/level_names_dict.pkl','rb') as fo:
+            with open('data/level_names_dict.pkl','rb') as fo:
                 level_names_dict = pickle.load(fo)
             df_species = pd.DataFrame(species_probs, columns=['species_' + x for x in level_names_dict['species']])
             df_val = pd.read_csv(val_csv)
             df_res = pd.concat([df_val, df_species], axis = 1)
 #             df_res.to_csv(osp.join('classification_hierarchy/making-better-mistakes/experiments/hxe_tct_alpha0.4_1117', 
 #                                    osp.basename(val_csv).replace('.','_res.')), encoding='utf-8-sig',index=False)
-            df_res.to_csv(osp.join('classification_hierarchy/making-better-mistakes-swinT/hxe_tct_alpha0.4_0412_alpha{}'.format(test_opts.alpha), 
+            df_res.to_csv(osp.join('experiments/hxe_tct_alpha0.4_0412_alpha{}'.format(test_opts.alpha),
                                    osp.basename(val_csv).replace('.','_res.')), encoding='utf-8-sig',index=False)
             """
             for k in summary.keys():

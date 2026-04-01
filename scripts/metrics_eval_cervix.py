@@ -91,7 +91,7 @@ def evaluate(df, method=2, to_level=3, cal_auc=True):
     #### level 1
     level_1_acc = accuracy_score(df_res['level_1'], df_res['level_1_pred'])
     acc_lst.append(level_1_acc)
-    level_1_distance = df_res[['level_1','level_1_pred']].apply(lambda x: lca_height(x[0], x[1]), axis =1).mean() # 同层的距离
+    level_1_distance = df_res[['level_1','level_1_pred']].apply(lambda x: lca_height(x[0], x[1]), axis =1).mean() # intra-level distance
     hierarchical_distances.append(level_1_distance)
     if cal_auc:
         auc_lst.append(roc_auc_score(df_res['level_1_id'], df_res.filter(regex='order*',axis=1), multi_class='ovr'))
@@ -103,7 +103,7 @@ def evaluate(df, method=2, to_level=3, cal_auc=True):
     print('#'*30)
     
     #### level 2
-    df_level2 = df_res[(~df_res['level_2'].isna())&(df_res['level_2']!='AGC')] # 不考虑AGC
+    df_level2 = df_res[(~df_res['level_2'].isna())&(df_res['level_2']!='AGC')] # exclude AGC
     level_2_distance = df_level2[['level_2','level_2_pred']].apply(lambda x: lca_height(x[0], x[1]), axis =1).mean()
     hierarchical_distances.append(level_2_distance)
 

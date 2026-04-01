@@ -1,6 +1,6 @@
 name: mbm
 channels:
-    - https://mirrors.aliyun.com/anaconda/pkgs/free/
+    - defaults
     - pytorch
     - anaconda
     - menpo

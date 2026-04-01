@@ -299,7 +299,7 @@ def _run_umap(emb_np, n_neighbors, min_dist, n_epochs, random_state):
  
  
 # ──────────────────────────────────────────────────────────────────
-# 内部辅助：画单张散点图并保存
+# Internal helper: draw a single scatter plot and save
 # ──────────────────────────────────────────────────────────────────
 def _save_scatter(coords, point_colors, legend_elements, title, save_path):
     fig, ax = plt.subplots(figsize=(20, 15))
@@ -313,13 +313,13 @@ def _save_scatter(coords, point_colors, legend_elements, title, save_path):
     print(f"Saved: {save_path}")
     return
 
-N_NEIGHBORS_SMALL = 10    # small n_neighbors：局部结构
-N_NEIGHBORS_LARGE = 100   # large n_neighbors：全局结构
-MIN_DIST          = 0.1   # 两种设置共用同一 min_dist
-N_EPOCHS          = 500   # 训练轮数
+N_NEIGHBORS_SMALL = 10    # small n_neighbors: local structure
+N_NEIGHBORS_LARGE = 100   # large n_neighbors: global structure
+MIN_DIST          = 0.1   # shared min_dist for both settings
+N_EPOCHS          = 500   # training epochs
  
 # ──────────────────────────────────────────────────────────────────
-# 主函数：small 和 large n_neighbors 各跑一次，共输出 4 张图
+# Main function: run once each for small and large n_neighbors, output 4 figures total
 # ──────────────────────────────────────────────────────────────────
 def plot_combined_umap(
     order_embeddings,
@@ -336,32 +336,32 @@ def plot_combined_umap(
     random_state=42,
 ):
     """
-    用 UMAP 在 small / large n_neighbors 两种设置下可视化嵌入，共输出 4 张图：
-      <name>_small_nn_h2cl.<ext>  —— 局部结构，order embedding
-      <name>_small_nn_swin.<ext>  —— 局部结构，family embedding
-      <name>_large_nn_h2cl.<ext>  —— 全局结构，order embedding
-      <name>_large_nn_swin.<ext>  —— 全局结构，family embedding
- 
-    参数
-    ----
-    order_embeddings   : torch.Tensor (N, D) — order 级别嵌入（H2CL 输出）
-    family_embeddings  : torch.Tensor (N, D) — family 级别嵌入（Swin 输出）
-    order_labels       : list[int]           — order 类别 id
-    family_labels      : list[int]           — family 类别 id，-1 表示无效样本
-    save_filename      : str                 — 基础文件名，如 "result.png"
-    noise_level        : float               — 加到 family embedding 的噪声幅度
-    smoothing_factor   : float               — order embedding 向质心平滑比例 [0,1]
-    n_neighbors_small  : int                 — 小邻域（局部结构），推荐 5~15
-    n_neighbors_large  : int                 — 大邻域（全局结构），推荐 50~200
-    min_dist           : float               — UMAP 最小距离，两组共用
-    n_epochs           : int                 — UMAP 训练轮数
-    random_state       : int                 — 随机种子，保证可复现
+    Visualize embeddings using UMAP with small / large n_neighbors settings, outputting 4 figures:
+      <name>_small_nn_h2cl.<ext>  -- local structure, order embedding
+      <name>_small_nn_swin.<ext>  -- local structure, family embedding
+      <name>_large_nn_h2cl.<ext>  -- global structure, order embedding
+      <name>_large_nn_swin.<ext>  -- global structure, family embedding
+
+    Parameters
+    ----------
+    order_embeddings   : torch.Tensor (N, D) -- order-level embedding (H2CL output)
+    family_embeddings  : torch.Tensor (N, D) -- family-level embedding (Swin output)
+    order_labels       : list[int]           -- order class ids
+    family_labels      : list[int]           -- family class ids, -1 indicates invalid samples
+    save_filename      : str                 -- base filename, e.g. "result.png"
+    noise_level        : float               -- noise amplitude added to family embedding
+    smoothing_factor   : float               -- smoothing ratio of order embedding toward centroid [0,1]
+    n_neighbors_small  : int                 -- small neighborhood (local structure), recommended 5~15
+    n_neighbors_large  : int                 -- large neighborhood (global structure), recommended 50~200
+    min_dist           : float               -- UMAP minimum distance, shared by both groups
+    n_epochs           : int                 -- UMAP training epochs
+    random_state       : int                 -- random seed for reproducibility
     """
  
     save_dir = 'UMAP_Combined'
     os.makedirs(save_dir, exist_ok=True)
  
-    # ── 1. 过滤无效样本（family_label == -1）────────────────────────
+    # -- 1. Filter invalid samples (family_label == -1) ------
     family_labels_np  = np.array(family_labels)
     order_labels_np   = np.array(order_labels)
     valid_indices     = (family_labels_np != -1)
@@ -372,7 +372,7 @@ def plot_combined_umap(
     filt_family_labels = family_labels_np[valid_indices]
     num_samples       = len(filt_order_labels)
  
-    # ── 2. Order embedding 平滑（向类质心靠拢）──────────────────────
+    # -- 2. Order embedding smoothing (toward class centroid) -
     order_id_to_embs = defaultdict(list)
     for i, o_id in enumerate(filt_order_labels):
         order_id_to_embs[o_id].append(filt_order_emb[i])
@@ -385,13 +385,13 @@ def plot_combined_umap(
         smoothed[i] = emb * (1 - smoothing_factor) + order_centroids[o_id] * smoothing_factor
     processed_order_embs = smoothed
  
-    # ── 3. Family embedding 加噪声──────────────────────────────────
+    # -- 3. Add noise to family embedding --------------------
     noisy_family_embs = filt_family_emb + torch.randn_like(filt_family_emb) * noise_level
  
-    # ── 4. 拼接（保证 order/family 在同一坐标系下比较）──────────────
+    # -- 4. Concatenate (ensure order/family share the same coordinate space) --
     combined_np = torch.cat([processed_order_embs, noisy_family_embs], dim=0).detach().cpu().numpy()
  
-    # ── 5. 配色（与原版完全一致）─────────────────────────────────────
+    # -- 5. Color mapping (identical to the original version) -
     unique_orders = sorted(list(set(filt_order_labels)))
     my_rgb_colors = [
         [184, 87,  85],
@@ -424,7 +424,7 @@ def plot_combined_umap(
  
     filename_base, ext = os.path.splitext(save_filename)
  
-    # ── 6. 循环跑 small / large 两组 UMAP，各输出 2 张图（共 4 张）──
+    # -- 6. Run UMAP for small / large groups, output 2 figures each (4 total) --
     configs = [
         (n_neighbors_small, "small_nn", f"Local Structure  (n_neighbors={n_neighbors_small})"),
         (n_neighbors_large, "large_nn", f"Global Structure (n_neighbors={n_neighbors_large})"),
@@ -434,10 +434,10 @@ def plot_combined_umap(
         print(f"\n[UMAP] Running with n_neighbors={n_neighbors} ({tag}) ...")
  
         umap_results = _run_umap(combined_np, n_neighbors, min_dist, n_epochs, random_state)
-        umap_order   = umap_results[:num_samples]   # order embedding 投影
-        umap_family  = umap_results[num_samples:]   # family embedding 投影
+        umap_order   = umap_results[:num_samples]   # order embedding projection
+        umap_family  = umap_results[num_samples:]   # family embedding projection
  
-        # 图1：H2CL Features
+        # Figure 1: H2CL Features
         _save_scatter(
             coords         = umap_order,
             point_colors   = point_colors,
@@ -446,7 +446,7 @@ def plot_combined_umap(
             save_path      = os.path.join(save_dir, f"{filename_base}_{tag}_h2cl{ext}"),
         )
  
-        # 图2：Swin Results
+        # Figure 2: Swin Results
         _save_scatter(
             coords         = umap_family,
             point_colors   = point_colors,
@@ -490,7 +490,7 @@ def run(loader, model, loss_function, distances, all_soft_labels, classes, opts,
     Runs training or inference routine for standard classification with soft-labels style losses
     """
     gradcam   = DualBranchGradCAM(model, c=0.05)
-    SPATIAL_HW = (12, 12)   # 输入224×224时；如不确定见下方调试方法
+    SPATIAL_HW = (12, 12)   # for 224x224 input; if unsure, see debugging method below
     MAX_VIZ   = 100
     viz_done  = 0
 

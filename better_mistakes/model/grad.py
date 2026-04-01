@@ -8,21 +8,21 @@ import os
 class DualBranchGradCAM:
     def __init__(self, model, c=0.05):
         """
-        model: 你的 SwinT 实例（含改造后的 head）
-        hook 目标: model.layers[3]，输出 (B, L, C)，L = H*W
+        model: Your SwinT instance (with modified head)
+        hook target: model.layers[3], output (B, L, C), L = H*W
         """
         self.model = model
         self.c = c
-        self._feat = None   # forward hook 存 feature（保留计算图）
-        self._grad = None   # backward hook 存梯度
+        self._feat = None   # forward hook stores feature (retains computation graph)
+        self._grad = None   # backward hook stores gradient
 
-        # layers[3] 整个 stage，在 stage 输出处挂 hook
-        # SwinT 的 BasicLayer 输出就是最后一个 block 的结果
+        # layers[3] is the entire stage; attach hook at stage output
+        # SwinT BasicLayer output is the result of the last block
         self._fh = model.backbone.layers[3].register_forward_hook(self._save_feat)
         self._bh = model.backbone.layers[3].register_full_backward_hook(self._save_grad)
 
     def _save_feat(self, m, inp, out):
-        # out: (B, L, C)，不 detach，保留计算图让梯度能回传
+        # out: (B, L, C), do not detach to retain computation graph for gradient backpropagation
         self._feat = out
 
     def _save_grad(self, m, gin, gout):
@@ -33,7 +33,7 @@ class DualBranchGradCAM:
         self._bh.remove()
 
     def _logmap0(self, x):
-        """庞加莱球 → 切空间（原点处对数映射）"""
+        """Poincare ball -> tangent space (logarithmic map at origin)"""
         sqrt_c = self.c ** 0.5
         norm = x.norm(dim=-1, keepdim=True).clamp(1e-8, 1 / sqrt_c - 1e-5)
         return (1.0 / sqrt_c) * torch.arctanh(sqrt_c * norm) * x / norm
@@ -41,13 +41,13 @@ class DualBranchGradCAM:
     def _build_cam(self, grad, feat, spatial_hw):
         """
         grad, feat: (B, L, C)
-        spatial_hw: (H, W)，满足 H*W == L
-        返回: (H, W) numpy float [0,1]
+        spatial_hw: (H, W), satisfying H*W == L
+        Returns: (H, W) numpy float [0,1]
         """
         H, W = spatial_hw
         B, L, C = feat.shape
 
-        # feat 此时还在计算图里，detach 后再操作
+        # feat is still in the computation graph; detach before further operations
         f = feat.detach().reshape(B, H, W, C).permute(0, 3, 1, 2)  # B,C,H,W
         g = grad.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
@@ -60,48 +60,48 @@ class DualBranchGradCAM:
     @torch.enable_grad()
     def generate(self, x, spatial_hw):
         """
-        x:           (1, 3, H_img, W_img) 单张图像，cuda tensor
-        spatial_hw:  layers[3] 输出的空间分辨率
-                     输入224 → (7,7)，384 → (12,12)，448 → (14,14)
-                     不确定就先跑一次看 _feat.shape
+        x:           (1, 3, H_img, W_img) single image, cuda tensor
+        spatial_hw:  spatial resolution of layers[3] output
+                     input 224 -> (7,7), 384 -> (12,12), 448 -> (14,14)
+                     if unsure, run once and check _feat.shape
 
-        返回:
+        Returns:
             cam_euc (H,W), cam_hyp (H,W)
         """
         self.model.eval()
         x = x.float()
         x.requires_grad_(True)
 
-        # ── forward：拿到4个 embedding ─────────────────────────
-        # 直接调用 model.forward，它内部会触发 hook
+        # -- forward: obtain 4 embeddings -------------------------
+        # directly call model.forward, which triggers the hook internally
         order_hyp, family_hyp, order_euc, family_euc = self.model.backbone(x)
-        # 对应你的 return: order_embedding_H, family_embedding_H,
+        # corresponds to return: order_embedding_H, family_embedding_H,
         #                   order_embedding_E, family_embedding_E
 
-        # ── 第一次反传：Euclidean 分支 ─────────────────────────
+        # -- first backward pass: Euclidean branch ----------------
         self.model.zero_grad()
         score_euc = order_euc[0].norm()          # scalar
         score_euc.backward(retain_graph=True)
-        grad_euc = self._grad.clone()            # hook 已更新
+        grad_euc = self._grad.clone()            # hook has been updated
 
-        # ── 第二次反传：Hyperbolic 分支 ────────────────────────
-        # order_hyp 在庞加莱球上，先投影到切空间消除球面度量影响
-        # 但反传仍然要从 order_hyp 出发（它连着计算图）
+        # -- second backward pass: Hyperbolic branch --------------
+        # order_hyp is on the Poincare ball; project to tangent space to remove spherical metric effects
+        # but backpropagation still starts from order_hyp (it is connected to the computation graph)
         self.model.zero_grad()
-        order_hyp_tan = self._logmap0(order_hyp)  # 切空间投影
+        order_hyp_tan = self._logmap0(order_hyp)  # tangent space projection
         score_hyp = order_hyp_tan[0].norm()       # scalar
         score_hyp.backward(retain_graph=False)
         grad_hyp = self._grad.clone()
 
-        # ── 生成 CAM ───────────────────────────────────────────
-        feat = self._feat  # forward hook 存的，(B, L, C)
+        # -- generate CAM ------------------------------------------
+        feat = self._feat  # stored by forward hook, (B, L, C)
         cam_euc = self._build_cam(grad_euc, feat, spatial_hw)
         cam_hyp = self._build_cam(grad_hyp, feat, spatial_hw)
 
         return cam_euc, cam_hyp
 
 
-# ── 可视化工具函数 ──────────────────────────────────────────────
+# -- visualization utility functions ----------------------
 def denormalize(t, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
     img = t.clone().cpu().float()
     for c, m, s in zip(range(3), mean, std):

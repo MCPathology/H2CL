@@ -3,7 +3,7 @@ import torch
 from torch.autograd import Variable
 
 # level_1, level_2, level_3 
-# 26个类别，但level_3只有23个类别
+# 26 classes in total, but level_3 has only 23 classes
 trees = [[0, 0, 0],
  [0, 1, 1],
  [0, 2, 2],
